@@ -7,6 +7,36 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Start & Bot Name Customization Lobby -->
+  <div id="startLobby" class="lobby-overlay">
+    <div class="lobby-card">
+      <h2>29 Card Game <span class="arena-badge">Lobby</span></h2>
+      <p class="lobby-subtitle">বটগুলোর নাম ঠিক করে Start Game চাপুন</p>
+
+      <div class="bot-name-grid">
+        <label class="bot-field">
+          <span>Partner (P3) Name</span>
+          <input type="text" id="botPartnerInput" value="Partner" maxlength="16" />
+        </label>
+
+        <label class="bot-field">
+          <span>West (P2) Name</span>
+          <input type="text" id="botWestInput" value="West" maxlength="16" />
+        </label>
+
+        <label class="bot-field">
+          <span>East (P4) Name</span>
+          <input type="text" id="botEastInput" value="East" maxlength="16" />
+        </label>
+      </div>
+
+      <div class="lobby-actions">
+        <button type="button" id="resetBotNamesBtn" class="secondary-btn">Default</button>
+        <button type="button" id="startGameBtn" class="primary-btn">Start Game</button>
+      </div>
+    </div>
+  </div>
+
   <div class="game-shell">
     <!-- Top HUD: Score, Bid & Trump -->
     <header class="hud-bar">
@@ -57,7 +87,7 @@
         </div>
 
         <div class="trick-center">
-          <div class="trick-status" id="statusText">Starting new game...</div>
+          <div class="trick-status" id="statusText">Press Start Game to begin...</div>
           <div class="trick-slots">
             <div class="slot slot-top" id="slotP3"></div>
             <div class="slot slot-left" id="slotP2"></div>
@@ -79,6 +109,7 @@
       <!-- Bottom: Controls & Player Hand -->
       <section class="bottom-area">
         <div class="action-bar">
+          <button id="openLobbyBtn" class="pill-btn" type="button">Bot Names</button>
           <button id="soundToggleBtn" class="pill-btn sound-on" type="button">Sound: ON</button>
           <button id="lastHandBtn" class="pill-btn" type="button" disabled>Last Hand</button>
           <button id="showTrumpBtn" class="pill-btn" type="button" disabled>Show Trump</button>
