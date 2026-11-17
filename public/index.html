@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>29 Card Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="game-shell">
+    <!-- Top HUD: Score, Bid & Trump -->
+    <header class="hud-bar">
+      <div class="team-scores">
+        <div class="score-row your-team">
+          <span>YOUR TEAM</span>
+          <strong id="yourScore">0</strong>
+        </div>
+        <div class="score-row opp-team">
+          <span>OPPONENT</span>
+          <strong id="oppScore">0</strong>
+        </div>
+      </div>
+
+      <div class="bid-box">
+        <div id="bidderLabel" class="bid-sub">Bid: --</div>
+        <div id="bidValue" class="bid-main">--</div>
+        <div id="stakeLabel" class="bid-stake">1x</div>
+      </div>
+
+      <div class="trump-box">
+        <div id="trumpCardFace" class="trump-mini-card back">🂠</div>
+        <div id="trumpSubLabel" class="trump-text">TRUMP</div>
+      </div>
+    </header>
+
+    <!-- Felt Card Table -->
+    <main class="felt-table">
+      <!-- Top: Partner (P3) -->
+      <div class="seat seat-top" id="seatP3">
+        <div class="seat-top-row">
+          <div class="avatar">👤</div>
+          <span class="turn-badge hidden" id="badgeP3">TURN</span>
+        </div>
+        <div class="name-tag partner-tag" id="p3Label">Partner</div>
+        <div class="mini-backs" id="p3Backs"></div>
+      </div>
+
+      <!-- Middle Row: West (P2) | Trick Center | East (P4) -->
+      <div class="middle-row">
+        <div class="seat seat-left" id="seatP2">
+          <div class="seat-top-row">
+            <div class="avatar">👤</div>
+            <span class="turn-badge hidden" id="badgeP2">TURN</span>
+          </div>
+          <div class="name-tag opp-tag" id="p2Label">West</div>
+          <div class="mini-backs" id="p2Backs"></div>
+        </div>
+
+        <div class="trick-center">
+          <div class="trick-status" id="statusText">Starting new game...</div>
+          <div class="trick-slots">
+            <div class="slot slot-top" id="slotP3"></div>
+            <div class="slot slot-left" id="slotP2"></div>
+            <div class="slot slot-right" id="slotP4"></div>
+            <div class="slot slot-bottom" id="slotP1"></div>
+          </div>
+        </div>
+
+        <div class="seat seat-right" id="seatP4">
+          <div class="seat-top-row">
+            <div class="avatar">👤</div>
+            <span class="turn-badge hidden" id="badgeP4">TURN</span>
+          </div>
+          <div class="name-tag opp-tag" id="p4Label">East</div>
+          <div class="mini-backs" id="p4Backs"></div>
+        </div>
+      </div>
+
+      <!-- Bottom: Controls & Player Hand -->
+      <section class="bottom-area">
+        <div class="action-bar">
+          <button id="soundToggleBtn" class="pill-btn sound-on" type="button">Sound: ON</button>
+          <button id="lastHandBtn" class="pill-btn" type="button" disabled>Last Hand</button>
+          <button id="showTrumpBtn" class="pill-btn" type="button" disabled>Show Trump</button>
+          <button id="newGameBtn" class="pill-btn primary-btn" type="button">New Game</button>
+        </div>
+
+        <div class="my-hand" id="myHand"></div>
+        <div class="my-footer-row">
+          <span class="my-label" id="p1Label">You (P1) — Team 1</span>
+          <span class="turn-badge hidden inline-badge" id="badgeP1">YOUR TURN</span>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bidding Modal -->
+    <div id="bidModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <h3>Place Your Bid</h3>
+        <p id="bidPromptText" class="modal-sub">Current bid: None</p>
+        <div id="bidButtonsGrid" class="bid-grid"></div>
+      </div>
+    </div>
+
+    <!-- Double / Re-double Modal -->
+    <div id="doubleModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <h3 id="doubleTitle">Double Bid?</h3>
+        <p id="doubleDesc" class="modal-sub"></p>
+        <div class="double-actions">
+          <button id="acceptDoubleBtn" class="pill-btn primary-btn full-btn" type="button">Yes</button>
+          <button id="declineDoubleBtn" class="pill-btn full-btn" type="button">No (Pass)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trump Selection Modal -->
+    <div id="trumpModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <h3>Select Trump</h3>
+        <p id="seventhCardInfo" class="modal-sub">7th Card: --</p>
+        <div class="suit-grid">
+          <button type="button" class="suit-btn" data-suit="♠">♠</button>
+          <button type="button" class="suit-btn red" data-suit="♥">♥</button>
+          <button type="button" class="suit-btn red" data-suit="♦">♦</button>
+          <button type="button" class="suit-btn" data-suit="♣">♣</button>
+        </div>
+        <button id="use7thCardBtn" class="pill-btn primary-btn full-btn" type="button" style="margin-top: 12px;">
+          Use 7th Card Suit
+        </button>
+        <button id="useJokerTrumpBtn" class="pill-btn full-btn" type="button" style="margin-top: 8px; background: #9333ea;">
+          Use Joker (🃏) as Trump
+        </button>
+      </div>
+    </div>
+
+    <!-- Last Hand Modal -->
+    <div id="lastHandModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <h3>Last Trick</h3>
+        <p id="lastHandWinner" class="modal-sub"></p>
+        <div id="lastHandCards" class="last-hand-list"></div>
+        <button id="closeLastHandBtn" class="pill-btn primary-btn full-btn" type="button" style="margin-top: 12px;">
+          Close
+        </button>
+      </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="resultModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="result-ribbon" id="resultTitle">Result</div>
+        <p id="resultDetail" class="modal-sub"></p>
+        <button id="continueBtn" class="pill-btn primary-btn full-btn" type="button">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
