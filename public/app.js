@@ -4,7 +4,40 @@ const RANKS = ["J", "9", "A", "10", "K", "Q", "8", "7"];
 const POINTS = { J: 3, "9": 2, A: 1, "10": 1, K: 0, Q: 0, "8": 0, "7": 0 };
 const HUMAN = 0; // P1 = You
 
-const PLAYER_NAMES = ["You (P1)", "West (P2)", "Partner (P3)", "East (P4)"];
+const BOT_STORAGE_KEY = "card29_bot_names_v1";
+const DEFAULT_BOT_NAMES = {
+  west: "West",     // P2
+  partner: "Partner", // P3
+  east: "East",     // P4
+};
+
+function loadBotNames() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BOT_STORAGE_KEY));
+    return {
+      west: (saved?.west || DEFAULT_BOT_NAMES.west).trim() || DEFAULT_BOT_NAMES.west,
+      partner: (saved?.partner || DEFAULT_BOT_NAMES.partner).trim() || DEFAULT_BOT_NAMES.partner,
+      east: (saved?.east || DEFAULT_BOT_NAMES.east).trim() || DEFAULT_BOT_NAMES.east,
+    };
+  } catch {
+    return { ...DEFAULT_BOT_NAMES };
+  }
+}
+
+let botNames = loadBotNames();
+const PLAYER_NAMES = [
+  "You (P1)",
+  `${botNames.west} (P2)`,
+  `${botNames.partner} (P3)`,
+  `${botNames.east} (P4)`,
+];
+
+function syncPlayerNames() {
+  PLAYER_NAMES[0] = "You (P1)";
+  PLAYER_NAMES[1] = `${botNames.west} (P2)`;
+  PLAYER_NAMES[2] = `${botNames.partner} (P3)`;
+  PLAYER_NAMES[3] = `${botNames.east} (P4)`;
+}
 
 // Lightweight Web Audio Sound Engine (no external files needed)
 const soundFX = {
@@ -59,21 +92,21 @@ const soundFX = {
 
 const state = {
   hands: [[], [], [], []],
-  dealer: 0,
+  dealer: 3,
   currentBid: 0,
   bidder: null,
-  stakeMultiplier: 1, // 1x normal, 2x double, 4x re-double
+  stakeMultiplier: 1,
   trump: null,
   trumpRevealed: false,
   animateTrumpReveal: false,
   leader: 1,
   trickNumber: 1,
-  played: [], // { player, card }
-  lastTrick: null, // { cards: [...], winner }
+  played: [],
+  lastTrick: null,
   teamPoints: [0, 0],
   activePlayer: null,
   lastPlayedPlayer: null,
-  phase: "idle", // bidding | double | trump | playing | finished
+  phase: "idle",
   bidResolver: null,
   doubleResolver: null,
   trumpResolver: null,
@@ -81,6 +114,13 @@ const state = {
 };
 
 const els = {
+  startLobby: document.getElementById("startLobby"),
+  botPartnerInput: document.getElementById("botPartnerInput"),
+  botWestInput: document.getElementById("botWestInput"),
+  botEastInput: document.getElementById("botEastInput"),
+  resetBotNamesBtn: document.getElementById("resetBotNamesBtn"),
+  startGameBtn: document.getElementById("startGameBtn"),
+  openLobbyBtn: document.getElementById("openLobbyBtn"),
   yourScore: document.getElementById("yourScore"),
   oppScore: document.getElementById("oppScore"),
   bidderLabel: document.getElementById("bidderLabel"),
@@ -357,6 +397,7 @@ function renderHUD() {
 }
 
 function renderTable() {
+  syncPlayerNames();
   renderHUD();
   renderTurnIndicators();
   renderBacks(els.p2Backs, state.hands[1].length);
@@ -364,9 +405,9 @@ function renderTable() {
   renderBacks(els.p4Backs, state.hands[3].length);
 
   els.p1Label.textContent = `You (P1) — Team 1${state.bidder === 0 ? ` [Bid ${state.currentBid}]` : ""}`;
-  els.p2Label.textContent = `West${state.bidder === 1 ? ` (${state.currentBid})` : ""}`;
-  els.p3Label.textContent = `Partner${state.bidder === 2 ? ` (${state.currentBid})` : ""}`;
-  els.p4Label.textContent = `East${state.bidder === 3 ? ` (${state.currentBid})` : ""}`;
+  els.p2Label.textContent = `${botNames.west}${state.bidder === 1 ? ` (${state.currentBid})` : ""}`;
+  els.p3Label.textContent = `${botNames.partner}${state.bidder === 2 ? ` (${state.currentBid})` : ""}`;
+  els.p4Label.textContent = `${botNames.east}${state.bidder === 3 ? ` (${state.currentBid})` : ""}`;
 
   els.slotP1.innerHTML = "";
   els.slotP2.innerHTML = "";
@@ -594,6 +635,8 @@ async function startGame() {
   els.trumpModal.classList.add("hidden");
   els.lastHandModal.classList.add("hidden");
 
+  syncPlayerNames();
+
   const deck = shuffle(createDeck());
   state.hands = [[], [], [], []];
   state.dealer = (state.dealer + 1) % 4;
@@ -664,7 +707,6 @@ async function startGame() {
     return startGame();
   }
 
-  // Optional Double / Re-double after bidding
   const bidderTeam = state.bidder % 2;
   state.phase = "double";
   if (bidderTeam === 0) {
@@ -837,6 +879,61 @@ async function startGame() {
   els.resultModal.classList.remove("hidden");
 }
 
+function syncLobbyInputs() {
+  if (els.botPartnerInput) els.botPartnerInput.value = botNames.partner;
+  if (els.botWestInput) els.botWestInput.value = botNames.west;
+  if (els.botEastInput) els.botEastInput.value = botNames.east;
+}
+
+function saveLobbyNames() {
+  botNames = {
+    partner: (els.botPartnerInput?.value || DEFAULT_BOT_NAMES.partner).trim() || DEFAULT_BOT_NAMES.partner,
+    west: (els.botWestInput?.value || DEFAULT_BOT_NAMES.west).trim() || DEFAULT_BOT_NAMES.west,
+    east: (els.botEastInput?.value || DEFAULT_BOT_NAMES.east).trim() || DEFAULT_BOT_NAMES.east,
+  };
+  try {
+    localStorage.setItem(BOT_STORAGE_KEY, JSON.stringify(botNames));
+  } catch {}
+  syncPlayerNames();
+  renderTable();
+}
+
+function openLobby() {
+  soundFX.click();
+  syncLobbyInputs();
+  if (els.startLobby) {
+    els.startLobby.classList.remove("hidden");
+    els.startLobby.style.display = "flex";
+  }
+}
+
+function closeLobby() {
+  if (els.startLobby) {
+    els.startLobby.classList.add("hidden");
+    els.startLobby.style.display = "none";
+  }
+}
+
+els.startGameBtn?.addEventListener("click", () => {
+  soundFX.click();
+  saveLobbyNames();
+  closeLobby();
+  startGame();
+});
+
+els.resetBotNamesBtn?.addEventListener("click", () => {
+  soundFX.click();
+  botNames = { ...DEFAULT_BOT_NAMES };
+  try {
+    localStorage.setItem(BOT_STORAGE_KEY, JSON.stringify(botNames));
+  } catch {}
+  syncLobbyInputs();
+  syncPlayerNames();
+  renderTable();
+});
+
+els.openLobbyBtn?.addEventListener("click", openLobby);
+
 els.newGameBtn.addEventListener("click", () => {
   soundFX.click();
   startGame();
@@ -847,4 +944,7 @@ els.continueBtn.addEventListener("click", () => {
   startGame();
 });
 
-startGame();
+// পেজ খুললেই অটো-স্টার্ট হবে না; Start Game চাপার অপেক্ষায় থাকবে
+syncLobbyInputs();
+renderTable();
+openLobby();
