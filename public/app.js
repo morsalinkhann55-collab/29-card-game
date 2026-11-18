@@ -3,12 +3,13 @@ const SUITS = ["♠", "♥", "♦", "♣"];
 const RANKS = ["J", "9", "A", "10", "K", "Q", "8", "7"];
 const POINTS = { J: 3, "9": 2, A: 1, "10": 1, K: 0, Q: 0, "8": 0, "7": 0 };
 const HUMAN = 0; // P1 = You
+const TARGET_MATCH_POINTS = 6; // 6 পয়েন্টে গেম শেষ
 
 const BOT_STORAGE_KEY = "card29_bot_names_v1";
 const DEFAULT_BOT_NAMES = {
-  west: "West",     // P2
-  partner: "Partner", // P3
-  east: "East",     // P4
+  west: "West",
+  partner: "Partner",
+  east: "East",
 };
 
 function loadBotNames() {
@@ -25,21 +26,38 @@ function loadBotNames() {
 }
 
 let botNames = loadBotNames();
-const PLAYER_NAMES = [
-  "You (P1)",
-  `${botNames.west} (P2)`,
-  `${botNames.partner} (P3)`,
-  `${botNames.east} (P4)`,
-];
+const PLAYER_NAMES = ["You", "West", "Partner", "East"];
 
 function syncPlayerNames() {
-  PLAYER_NAMES[0] = "You (P1)";
-  PLAYER_NAMES[1] = `${botNames.west} (P2)`;
-  PLAYER_NAMES[2] = `${botNames.partner} (P3)`;
-  PLAYER_NAMES[3] = `${botNames.east} (P4)`;
+  PLAYER_NAMES[0] = "You";
+  PLAYER_NAMES[1] = botNames.west;
+  PLAYER_NAMES[2] = botNames.partner;
+  PLAYER_NAMES[3] = botNames.east;
 }
 
-// Lightweight Web Audio Sound Engine (no external files needed)
+function getShortPlayerName(playerIndex) {
+  syncPlayerNames();
+  if (playerIndex === HUMAN) return "You";
+  if (playerIndex === 1) return botNames.west;
+  if (playerIndex === 2) return botNames.partner;
+  if (playerIndex === 3) return botNames.east;
+  return "";
+}
+
+function getTeamNames(teamIndex) {
+  syncPlayerNames();
+  if (teamIndex === 0) {
+    return `You & ${botNames.partner}`;
+  }
+  return `${botNames.west} & ${botNames.east}`;
+}
+
+function getStakeLabelText(multiplier) {
+  if (multiplier >= 4) return "REDOUBLE";
+  if (multiplier === 2) return "DOUBLE";
+  return "NORMAL";
+}
+
 const soundFX = {
   enabled: true,
   ctx: null,
@@ -95,6 +113,7 @@ const state = {
   dealer: 3,
   currentBid: 0,
   bidder: null,
+  trumpMaker: null,
   stakeMultiplier: 1,
   trump: null,
   trumpRevealed: false,
@@ -104,6 +123,8 @@ const state = {
   played: [],
   lastTrick: null,
   teamPoints: [0, 0],
+  matchPoints: [0, 0],
+  matchOver: false,
   activePlayer: null,
   lastPlayedPlayer: null,
   phase: "idle",
@@ -240,17 +261,17 @@ function botBid(hand, currentBid) {
   let total = 0;
   for (const c of hand) total += c.points;
   let wanted = 0;
-  if (total >= 6) wanted = 21;
-  else if (total >= 5) wanted = 19;
-  else if (total >= 4) wanted = 17;
-  else if (total >= 3) wanted = 16;
+  if (total >= 5) wanted = 19;
+  else if (total >= 3) wanted = 17;
+  else if (total >= 2) wanted = 16;
   return wanted > currentBid ? wanted : "pass";
 }
 
 function botChooseTrump(hand) {
+  const fourCards = hand.slice(0, 4);
   const score = {};
   for (const s of SUITS) score[s] = 0;
-  for (const c of hand) score[c.suit] += c.points + 1;
+  for (const c of fourCards) score[c.suit] += c.points + 1;
   let best = SUITS[0];
   for (const s of SUITS) {
     if (score[s] > score[best]) best = s;
@@ -263,7 +284,7 @@ function botShouldDouble(hand, currentBid) {
   for (const c of hand) {
     if (c.rank === "J" || c.rank === "9" || c.rank === "A") highCards++;
   }
-  return highCards >= 3 && currentBid >= 17;
+  return highCards >= 2 && currentBid >= 16;
 }
 
 function botPlay(hand, played, trump, trumpRevealed) {
@@ -288,7 +309,7 @@ function checkCouple(hands, trump) {
     const hasQ = combined.some((c) => c.suit === trump && c.rank === "Q");
     if (hasK && hasQ) {
       bonus[team] = 4;
-      notes.push(`Team ${team + 1} Couple (+4)`);
+      notes.push(`${getTeamNames(team)} Couple (+4)`);
     }
   }
   return { bonus, notes };
@@ -359,31 +380,53 @@ function renderTurnIndicators() {
   els.myHand.classList.toggle("active-turn", state.activePlayer === HUMAN);
 }
 
-function renderHUD() {
-  els.yourScore.textContent = state.teamPoints[0];
-  els.oppScore.textContent = state.teamPoints[1];
-  els.bidderLabel.textContent =
-    state.bidder !== null ? `Bid: P${state.bidder + 1}` : "Bid: --";
-  els.bidValue.textContent = state.currentBid > 0 ? state.currentBid : "--";
-  els.stakeLabel.textContent = `${state.stakeMultiplier}x`;
+function updateHudTeamLabels() {
+  const yourTeamLabel = document.querySelector(".your-team span");
+  const oppTeamLabel = document.querySelector(".opp-team span");
+  if (yourTeamLabel) yourTeamLabel.textContent = getTeamNames(0).toUpperCase();
+  if (oppTeamLabel) oppTeamLabel.textContent = getTeamNames(1).toUpperCase();
+}
 
+function renderHUD() {
+  updateHudTeamLabels();
+  els.yourScore.textContent = `${state.matchPoints[0]}/${TARGET_MATCH_POINTS}`;
+  els.oppScore.textContent = `${state.matchPoints[1]}/${TARGET_MATCH_POINTS}`;
+
+  const activeTrumpMaker =
+    state.trumpMaker !== null ? state.trumpMaker : state.bidder;
+  els.bidderLabel.textContent =
+    activeTrumpMaker !== null
+      ? `Trump: ${getShortPlayerName(activeTrumpMaker)}`
+      : "Bid: --";
+  els.bidValue.textContent = state.currentBid > 0 ? state.currentBid : "--";
+  els.stakeLabel.textContent = getStakeLabelText(state.stakeMultiplier);
+
+  const makerName =
+    state.trumpMaker !== null ? getShortPlayerName(state.trumpMaker) : "";
   const animCls = state.animateTrumpReveal ? " reveal-anim" : "";
+
   if (state.trumpRevealed && state.trump) {
     if (state.trump === "JOKER") {
       els.trumpCardFace.className = "trump-mini-card" + animCls;
       els.trumpCardFace.innerHTML = `<span class="trump-card-rank">JOKER</span><span class="trump-card-suit">🃏</span>`;
-      els.trumpSubLabel.textContent = "TRUMP (🃏)";
+      els.trumpSubLabel.textContent = makerName ? `TRUMP (🃏) • ${makerName}` : "TRUMP (🃏)";
     } else {
       els.trumpCardFace.className =
         "trump-mini-card" + (isRed(state.trump) ? " red" : "") + animCls;
       els.trumpCardFace.innerHTML = `<span class="trump-card-rank">A</span><span class="trump-card-suit">${state.trump}</span>`;
-      els.trumpSubLabel.textContent = `TRUMP (${state.trump})`;
+      els.trumpSubLabel.textContent = makerName
+        ? `TRUMP (${state.trump}) • ${makerName}`
+        : `TRUMP (${state.trump})`;
     }
     state.animateTrumpReveal = false;
   } else {
     els.trumpCardFace.className = "trump-mini-card back";
     els.trumpCardFace.textContent = "🂠";
-    els.trumpSubLabel.textContent = state.trump ? "TRUMP (HIDDEN)" : "TRUMP";
+    els.trumpSubLabel.textContent = state.trump
+      ? makerName
+        ? `HIDDEN • ${makerName}`
+        : "TRUMP (HIDDEN)"
+      : "TRUMP";
   }
 
   const canReveal =
@@ -404,10 +447,35 @@ function renderTable() {
   renderBacks(els.p3Backs, state.hands[2].length);
   renderBacks(els.p4Backs, state.hands[3].length);
 
-  els.p1Label.textContent = `You (P1) — Team 1${state.bidder === 0 ? ` [Bid ${state.currentBid}]` : ""}`;
-  els.p2Label.textContent = `${botNames.west}${state.bidder === 1 ? ` (${state.currentBid})` : ""}`;
-  els.p3Label.textContent = `${botNames.partner}${state.bidder === 2 ? ` (${state.currentBid})` : ""}`;
-  els.p4Label.textContent = `${botNames.east}${state.bidder === 3 ? ` (${state.currentBid})` : ""}`;
+  const p1Tag =
+    state.trumpMaker === 0
+      ? ` [Trump ${state.currentBid}]`
+      : state.bidder === 0
+        ? ` [Bid ${state.currentBid}]`
+        : "";
+  const p2Tag =
+    state.trumpMaker === 1
+      ? ` [Trump ${state.currentBid}]`
+      : state.bidder === 1
+        ? ` (${state.currentBid})`
+        : "";
+  const p3Tag =
+    state.trumpMaker === 2
+      ? ` [Trump ${state.currentBid}]`
+      : state.bidder === 2
+        ? ` (${state.currentBid})`
+        : "";
+  const p4Tag =
+    state.trumpMaker === 3
+      ? ` [Trump ${state.currentBid}]`
+      : state.bidder === 3
+        ? ` (${state.currentBid})`
+        : "";
+
+  els.p1Label.textContent = `You${p1Tag}`;
+  els.p2Label.textContent = `${botNames.west}${p2Tag}`;
+  els.p3Label.textContent = `${botNames.partner}${p3Tag}`;
+  els.p4Label.textContent = `${botNames.east}${p4Tag}`;
 
   els.slotP1.innerHTML = "";
   els.slotP2.innerHTML = "";
@@ -458,7 +526,7 @@ function promptHumanBid(minNext) {
     state.bidResolver = resolve;
     els.bidPromptText.textContent =
       state.currentBid === 0
-        ? "Minimum bid is 16, or choose PASS"
+        ? "4 cards dealt! Minimum bid is 16, or choose PASS"
         : `Current bid is ${state.currentBid} — bid at least ${minNext} or PASS`;
 
     els.bidButtonsGrid.innerHTML = "";
@@ -522,26 +590,29 @@ els.declineDoubleBtn.addEventListener("click", () => {
   }
 });
 
-function getSeventhCard() {
-  return (
-    state.hands[HUMAN][6] ||
-    state.hands[HUMAN][state.hands[HUMAN].length - 1] ||
-    null
-  );
+function getFourCardTrumpSource() {
+  const firstFour = (state.hands[HUMAN] || []).slice(0, 4);
+  if (firstFour.length === 0) return null;
+  return firstFour[firstFour.length - 1];
 }
 
 function promptHumanTrump() {
   return new Promise((resolve) => {
     state.trumpResolver = resolve;
-    const seventh = getSeventhCard();
-    if (seventh) {
-      els.seventhCardInfo.textContent = `Your 7th Card: ${seventh.rank}${seventh.suit} (Suit: ${seventh.suit})`;
+    const firstFour = (state.hands[HUMAN] || []).slice(0, 4);
+    const preview = firstFour.map((c) => `${c.rank}${c.suit}`).join(" ");
+    const refCard = getFourCardTrumpSource();
+
+    if (refCard) {
+      els.seventhCardInfo.textContent = `4 Cards: ${preview} | 7th Card Suit Option (from 4 cards): ${refCard.suit}`;
       els.use7thCardBtn.disabled = false;
-      els.use7thCardBtn.textContent = `Use 7th Card Suit (${seventh.suit})`;
+      els.use7thCardBtn.textContent = `Use 7th Card Suit (${refCard.suit})`;
     } else {
-      els.seventhCardInfo.textContent = "7th Card not available";
+      els.seventhCardInfo.textContent = "4 Cards: --";
       els.use7thCardBtn.disabled = true;
+      els.use7thCardBtn.textContent = "Use 7th Card Suit";
     }
+
     els.trumpModal.classList.remove("hidden");
   });
 }
@@ -559,14 +630,14 @@ document.querySelectorAll(".suit-btn").forEach((btn) => {
 });
 
 els.use7thCardBtn.addEventListener("click", () => {
-  const seventh = getSeventhCard();
-  if (!seventh) return;
+  const refCard = getFourCardTrumpSource();
+  if (!refCard) return;
   soundFX.click();
   els.trumpModal.classList.add("hidden");
   if (state.trumpResolver) {
     const r = state.trumpResolver;
     state.trumpResolver = null;
-    r(seventh.suit);
+    r(refCard.suit);
   }
 });
 
@@ -583,7 +654,9 @@ els.useJokerTrumpBtn.addEventListener("click", () => {
 els.showTrumpBtn.addEventListener("click", () => {
   if (!state.trumpRevealed && state.trump) {
     triggerTrumpReveal();
-    els.statusText.textContent = `Trump revealed: ${state.trump === "JOKER" ? "Joker (🃏)" : state.trump}`;
+    const makerLabel =
+      state.trumpMaker !== null ? ` (${getShortPlayerName(state.trumpMaker)})` : "";
+    els.statusText.textContent = `Trump revealed${makerLabel}: ${state.trump === "JOKER" ? "Joker (🃏)" : state.trump}`;
     renderTable();
   }
 });
@@ -599,7 +672,7 @@ els.soundToggleBtn.addEventListener("click", () => {
 els.lastHandBtn.addEventListener("click", () => {
   if (!state.lastTrick) return;
   soundFX.click();
-  els.lastHandWinner.textContent = `Won by ${PLAYER_NAMES[state.lastTrick.winner]}`;
+  els.lastHandWinner.textContent = `Won by ${getShortPlayerName(state.lastTrick.winner)}`;
   els.lastHandCards.innerHTML = "";
   state.lastTrick.cards.forEach((item) => {
     const wrap = document.createElement("div");
@@ -610,7 +683,7 @@ els.lastHandBtn.addEventListener("click", () => {
     wrap.appendChild(makeCardEl(item.card, false));
     const cap = document.createElement("span");
     cap.style.fontSize = "11px";
-    cap.textContent = PLAYER_NAMES[item.player].split(" ")[0];
+    cap.textContent = getShortPlayerName(item.player);
     wrap.appendChild(cap);
     els.lastHandCards.appendChild(wrap);
   });
@@ -628,7 +701,17 @@ function waitHumanCard() {
   });
 }
 
-async function startGame() {
+function resetMatchPoints() {
+  state.matchPoints = [0, 0];
+  state.matchOver = false;
+  state.dealer = 3;
+}
+
+async function startGame(freshMatch = false) {
+  if (freshMatch || state.matchOver) {
+    resetMatchPoints();
+  }
+
   els.resultModal.classList.add("hidden");
   els.bidModal.classList.add("hidden");
   els.doubleModal.classList.add("hidden");
@@ -642,6 +725,7 @@ async function startGame() {
   state.dealer = (state.dealer + 1) % 4;
   state.currentBid = 0;
   state.bidder = null;
+  state.trumpMaker = null;
   state.stakeMultiplier = 1;
   state.trump = null;
   state.trumpRevealed = false;
@@ -657,7 +741,7 @@ async function startGame() {
 
   for (let i = 0; i < 16; i++) state.hands[i % 4].push(deck.shift());
   renderTable();
-  els.statusText.textContent = "Bidding round started...";
+  els.statusText.textContent = "4 cards dealt — Bidding started...";
   await sleep(450);
 
   const passed = [false, false, false, false];
@@ -678,18 +762,18 @@ async function startGame() {
         els.statusText.textContent = "Your turn to bid...";
         bid = await promptHumanBid(minNext);
       } else {
-        els.statusText.textContent = `${PLAYER_NAMES[turn]} is bidding...`;
+        els.statusText.textContent = `${getShortPlayerName(turn)} is bidding...`;
         await sleep(360);
         bid = botBid(state.hands[turn], state.currentBid);
       }
 
       if (bid === "pass") {
         passed[turn] = true;
-        els.statusText.textContent = `${PLAYER_NAMES[turn]} passed`;
+        els.statusText.textContent = `${getShortPlayerName(turn)} passed`;
       } else {
         state.currentBid = bid;
         state.bidder = turn;
-        els.statusText.textContent = `${PLAYER_NAMES[turn]} bid ${bid}`;
+        els.statusText.textContent = `${getShortPlayerName(turn)} bid ${bid}`;
         if (bid === 28) break;
       }
       renderHUD();
@@ -702,12 +786,33 @@ async function startGame() {
   renderTurnIndicators();
 
   if (state.bidder === null) {
-    els.statusText.textContent = "All passed! Redealing...";
+    els.statusText.textContent = "All passed! Redealing 4 cards...";
     await sleep(850);
-    return startGame();
+    return startGame(false);
   }
 
+  state.trumpMaker = state.bidder;
+  const trumpMakerName = getShortPlayerName(state.trumpMaker);
+
+  state.phase = "trump";
+  if (state.bidder === HUMAN) {
+    els.statusText.textContent = `${trumpMakerName} won the bid — choose Trump from 4 cards`;
+    state.trump = await promptHumanTrump();
+    els.statusText.textContent = `${trumpMakerName} selected Trump`;
+  } else {
+    els.statusText.textContent = `${trumpMakerName} is selecting Trump from 4 cards...`;
+    renderHUD();
+    await sleep(420);
+    state.trump = botChooseTrump(state.hands[state.bidder]);
+    els.statusText.textContent = `${trumpMakerName} (${state.currentBid}) selected hidden Trump`;
+  }
+  renderTable();
+  await sleep(400);
+
   const bidderTeam = state.bidder % 2;
+  const defendingTeamNames = getTeamNames(1 - bidderTeam);
+  const biddingTeamNames = getTeamNames(bidderTeam);
+
   state.phase = "double";
   if (bidderTeam === 0) {
     const oppWantsDouble =
@@ -716,55 +821,44 @@ async function startGame() {
     if (oppWantsDouble) {
       state.stakeMultiplier = 2;
       renderHUD();
-      els.statusText.textContent = `Opponent DOUBLED bid ${state.currentBid} (2x)!`;
+      els.statusText.textContent = `${defendingTeamNames} chose DOUBLE on ${trumpMakerName}'s bid (${state.currentBid})!`;
       await sleep(600);
 
       const reDouble = await promptHumanDouble(
-        "Re-double (4x)?",
-        `Opponent doubled your bid of ${state.currentBid}. Do you want to Re-double for 4x points?`
+        "REDOUBLE?",
+        `${defendingTeamNames} chose DOUBLE on ${trumpMakerName}'s bid of ${state.currentBid}. Choose REDOUBLE?`
       );
       if (reDouble) {
         state.stakeMultiplier = 4;
         renderHUD();
-        els.statusText.textContent = "Your team RE-DOUBLED (4x)!";
+        els.statusText.textContent = `${biddingTeamNames} chose REDOUBLE!`;
         await sleep(550);
       }
     }
   } else {
     const wantDouble = await promptHumanDouble(
-      "Double Bid?",
-      `${PLAYER_NAMES[state.bidder]} bid ${state.currentBid}. Double for 2x points?`
+      "DOUBLE Bid?",
+      `${trumpMakerName} bid ${state.currentBid}. Choose DOUBLE?`
     );
     if (wantDouble) {
       state.stakeMultiplier = 2;
       renderHUD();
-      els.statusText.textContent = "You DOUBLED the bid (2x)!";
+      els.statusText.textContent = `${defendingTeamNames} chose DOUBLE on ${trumpMakerName}'s bid!`;
       await sleep(500);
 
       const botReDouble =
         botShouldDouble(state.hands[state.bidder], state.currentBid) &&
-        state.currentBid >= 19;
+        state.currentBid >= 17;
       if (botReDouble) {
         state.stakeMultiplier = 4;
         renderHUD();
-        els.statusText.textContent = `${PLAYER_NAMES[state.bidder]} RE-DOUBLED (4x)!`;
+        els.statusText.textContent = `${trumpMakerName} chose REDOUBLE!`;
         await sleep(600);
       }
     }
   }
 
   for (let i = 0; i < 16; i++) state.hands[i % 4].push(deck.shift());
-  renderTable();
-
-  state.phase = "trump";
-  if (state.bidder === HUMAN) {
-    els.statusText.textContent = "You won the bid — choose Trump";
-    state.trump = await promptHumanTrump();
-  } else {
-    state.trump = botChooseTrump(state.hands[state.bidder]);
-    els.statusText.textContent = `${PLAYER_NAMES[state.bidder]} (${state.currentBid}) selected hidden Trump`;
-  }
-
   state.phase = "playing";
   renderTable();
   await sleep(420);
@@ -785,18 +879,18 @@ async function startGame() {
 
       if (!hasLead && !state.trumpRevealed && p !== HUMAN) {
         triggerTrumpReveal();
-        els.statusText.textContent = `${PLAYER_NAMES[p]} could not follow suit! Trump revealed: ${state.trump === "JOKER" ? "Joker (🃏)" : state.trump}`;
+        els.statusText.textContent = `${getShortPlayerName(p)} could not follow suit! ${trumpMakerName}'s Trump revealed: ${state.trump === "JOKER" ? "Joker (🃏)" : state.trump}`;
         renderHUD();
         await sleep(500);
       }
 
       let card;
       if (p === HUMAN) {
-        els.statusText.textContent = `Trick ${trick}/8 — ${PLAYER_NAMES[p]} turn`;
+        els.statusText.textContent = `Trick ${trick}/8 — ${getShortPlayerName(p)} turn`;
         renderTable();
         card = await waitHumanCard();
       } else {
-        els.statusText.textContent = `Trick ${trick}/8 — ${PLAYER_NAMES[p]} playing card...`;
+        els.statusText.textContent = `Trick ${trick}/8 — ${getShortPlayerName(p)} playing card...`;
         renderTable();
         await sleep(380);
         card = botPlay(
@@ -812,7 +906,7 @@ async function startGame() {
       state.lastPlayedPlayer = p;
       state.activePlayer = null;
       soundFX.cardPlay();
-      els.statusText.textContent = `Trick ${trick}/8 — ${PLAYER_NAMES[p]} played ${card.rank}${card.suit}`;
+      els.statusText.textContent = `Trick ${trick}/8 — ${getShortPlayerName(p)} played ${card.rank}${card.suit}`;
       renderTable();
       await sleep(220);
     }
@@ -830,7 +924,7 @@ async function startGame() {
     state.lastPlayedPlayer = null;
 
     if (winner % 2 === 0) soundFX.win();
-    els.statusText.textContent = `Trick ${trick} won by ${PLAYER_NAMES[winner]} (+${pts + lastBonus})`;
+    els.statusText.textContent = `Trick ${trick} won by ${getShortPlayerName(winner)} (+${pts + lastBonus})`;
     renderHUD();
     renderTurnIndicators();
     await sleep(750);
@@ -839,43 +933,45 @@ async function startGame() {
   state.phase = "finished";
   state.activePlayer = null;
   state.lastPlayedPlayer = null;
+
   const couple = checkCouple(state.hands, state.trump);
   const rawScores = [
     state.teamPoints[0] + couple.bonus[0],
     state.teamPoints[1] + couple.bonus[1],
   ];
   const bidSucceeded = rawScores[bidderTeam] >= state.currentBid;
-  const stakeValue = state.currentBid * state.stakeMultiplier;
+  const roundPointDelta = 1 * state.stakeMultiplier;
+  const roundWinnerTeam = bidSucceeded ? bidderTeam : 1 - bidderTeam;
 
-  const finalDisplayScores = [rawScores[0], rawScores[1]];
-  if (bidSucceeded) {
-    finalDisplayScores[bidderTeam] = Math.max(rawScores[bidderTeam], stakeValue);
-  } else {
-    finalDisplayScores[1 - bidderTeam] = Math.max(
-      rawScores[1 - bidderTeam],
-      stakeValue
-    );
-  }
-  state.teamPoints = finalDisplayScores;
+  state.matchPoints[roundWinnerTeam] += roundPointDelta;
+
+  const team0Reached6 = state.matchPoints[0] >= TARGET_MATCH_POINTS;
+  const team1Reached6 = state.matchPoints[1] >= TARGET_MATCH_POINTS;
+  state.matchOver = team0Reached6 || team1Reached6;
+
   renderHUD();
   renderTurnIndicators();
 
-  const youWonRound =
-    (bidderTeam === 0 && bidSucceeded) || (bidderTeam !== 0 && !bidSucceeded);
+  const youWonRound = roundWinnerTeam === 0;
   if (youWonRound) soundFX.win();
-
-  els.resultTitle.textContent =
-    bidderTeam === 0
-      ? bidSucceeded
-        ? "Your team has won!"
-        : "Your team missed the bid!"
-      : !bidSucceeded
-        ? "Your team has won!"
-        : "Opponent won the bid!";
 
   const coupleText =
     couple.notes.length > 0 ? couple.notes.join(", ") : "No Couple";
-  els.resultDetail.textContent = `Bid: ${state.currentBid} (${state.stakeMultiplier}x) by ${PLAYER_NAMES[state.bidder]} | Trick Pts: ${rawScores[0]} vs ${rawScores[1]} | Final: ${finalDisplayScores[0]} vs ${finalDisplayScores[1]} | ${coupleText}`;
+  const roundWinnerNames = getTeamNames(roundWinnerTeam);
+  const stakeName = getStakeLabelText(state.stakeMultiplier);
+
+  if (state.matchOver) {
+    const matchWinnerTeam = state.matchPoints[0] >= TARGET_MATCH_POINTS ? 0 : 1;
+    els.resultTitle.textContent = `🏆 ${getTeamNames(matchWinnerTeam).toUpperCase()} WON THE GAME (6 Points)!`;
+    els.continueBtn.textContent = "Play New 6-Point Game";
+  } else {
+    els.resultTitle.textContent = bidSucceeded
+      ? `${trumpMakerName} made the bid! (${roundWinnerNames} +${roundPointDelta})`
+      : `${trumpMakerName} missed the bid! (${roundWinnerNames} +${roundPointDelta})`;
+    els.continueBtn.textContent = "Next Hand";
+  }
+
+  els.resultDetail.textContent = `Trump by ${trumpMakerName} (${state.currentBid}, ${stakeName}) | Trick Pts: ${rawScores[0]} vs ${rawScores[1]} | Match: ${getTeamNames(0)} ${state.matchPoints[0]} - ${state.matchPoints[1]} ${getTeamNames(1)} | ${coupleText}`;
   els.resultModal.classList.remove("hidden");
 }
 
@@ -918,7 +1014,7 @@ els.startGameBtn?.addEventListener("click", () => {
   soundFX.click();
   saveLobbyNames();
   closeLobby();
-  startGame();
+  startGame(true);
 });
 
 els.resetBotNamesBtn?.addEventListener("click", () => {
@@ -936,15 +1032,14 @@ els.openLobbyBtn?.addEventListener("click", openLobby);
 
 els.newGameBtn.addEventListener("click", () => {
   soundFX.click();
-  startGame();
+  startGame(true);
 });
 
 els.continueBtn.addEventListener("click", () => {
   soundFX.click();
-  startGame();
+  startGame(state.matchOver);
 });
 
-// পেজ খুললেই অটো-স্টার্ট হবে না; Start Game চাপার অপেক্ষায় থাকবে
 syncLobbyInputs();
 renderTable();
 openLobby();
