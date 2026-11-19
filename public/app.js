@@ -254,51 +254,50 @@ const els = {
   continueBtn: document.getElementById("continueBtn"),
 };
 
-// মার্ক পাইল কার্ডগুলো উপরের লাল টিক (✓) চিহ্নের জায়গায় এবং বড় সাইজে দেখানোর স্টাইল
+// মার্ক পাইল কার্ডগুলো উপরের দিকে বোর্ড লাইনের ভেতরে এবং বড় সাইজে বসানো
 function ensureTopLargeMarkPiles() {
   if (document.getElementById("topLargeMarkStyle")) return;
 
   const style = document.createElement("style");
   style.id = "topLargeMarkStyle";
   style.textContent = `
-    #yourPileCards, #oppPileCards {
-      position: fixed !important;
-      top: 86px !important;
-      z-index: 60 !important;
+    #yourPileBox, #oppPileBox {
+      position: absolute !important;
+      top: 12px !important;
+      z-index: 40 !important;
       display: flex !important;
+      flex-direction: column !important;
       align-items: center !important;
       gap: 4px !important;
       pointer-events: none;
     }
-    #yourPileCards {
-      left: 10px !important;
+    #yourPileBox {
+      left: 14px !important;
     }
-    #oppPileCards {
-      right: 10px !important;
-      flex-direction: row-reverse !important;
+    #oppPileBox {
+      right: 14px !important;
+    }
+    #yourPileCards, #oppPileCards {
+      position: static !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 4px !important;
+      min-height: 58px !important;
     }
     #yourMarkText, #oppMarkText {
-      position: fixed !important;
-      top: 156px !important;
-      z-index: 60 !important;
-      font-size: 12px !important;
+      position: static !important;
+      font-size: 11px !important;
       font-weight: 800 !important;
       color: #ffffff !important;
-      background: rgba(15, 23, 42, 0.82) !important;
+      background: rgba(15, 23, 42, 0.78) !important;
       padding: 2px 8px !important;
       border-radius: 999px !important;
-      border: 1px solid rgba(255, 255, 255, 0.25) !important;
-      pointer-events: none;
-    }
-    #yourMarkText {
-      left: 10px !important;
-    }
-    #oppMarkText {
-      right: 10px !important;
+      border: 1px solid rgba(255, 255, 255, 0.22) !important;
+      white-space: nowrap !important;
     }
     .pile-card-6d, .pile-card-back {
-      width: 44px !important;
-      height: 62px !important;
+      width: 42px !important;
+      height: 58px !important;
       border-radius: 7px !important;
     }
     .pile-6d-corner {
@@ -310,20 +309,67 @@ function ensureTopLargeMarkPiles() {
       height: 7px !important;
     }
     @media (max-width: 480px) {
-      #yourPileCards, #oppPileCards {
-        top: 82px !important;
+      #yourPileBox, #oppPileBox {
+        top: 10px !important;
       }
-      #yourMarkText, #oppMarkText {
-        top: 146px !important;
-        font-size: 11px !important;
+      #yourPileBox {
+        left: 10px !important;
+      }
+      #oppPileBox {
+        right: 10px !important;
       }
       .pile-card-6d, .pile-card-back {
-        width: 40px !important;
-        height: 56px !important;
+        width: 36px !important;
+        height: 50px !important;
+      }
+      #yourMarkText, #oppMarkText {
+        font-size: 10px !important;
+        padding: 2px 6px !important;
       }
     }
   `;
   document.head.appendChild(style);
+}
+
+function mountMarkBoxesInsideBoard() {
+  ensureTopLargeMarkPiles();
+  if (!els.yourPileCards || !els.yourMarkText || !els.oppPileCards || !els.oppMarkText) return;
+
+  const board =
+    (els.seatP3 && els.seatP3.parentElement) ||
+    document.querySelector(".table-board") ||
+    document.querySelector(".board") ||
+    document.body;
+
+  if (board && getComputedStyle(board).position === "static") {
+    board.style.position = "relative";
+  }
+
+  let yourBox = document.getElementById("yourPileBox");
+  if (!yourBox) {
+    yourBox = document.createElement("div");
+    yourBox.id = "yourPileBox";
+    board.appendChild(yourBox);
+  }
+  if (els.yourPileCards.parentElement !== yourBox) {
+    yourBox.appendChild(els.yourPileCards);
+  }
+  if (els.yourMarkText.parentElement !== yourBox) {
+    yourBox.appendChild(els.yourMarkText);
+  }
+
+  let oppBox = document.getElementById("oppPileBox");
+  if (!oppBox) {
+    oppBox = document.createElement("div");
+    oppBox.id = "oppPileBox";
+    board.appendChild(oppBox);
+  }
+  if (els.oppPileCards.parentElement !== oppBox) {
+    oppBox.appendChild(els.oppPileCards);
+  }
+  if (els.oppMarkText.parentElement !== oppBox) {
+    oppBox.appendChild(els.oppMarkText);
+  }
 }
 
 function getPlayerName(idx) {
@@ -1030,7 +1076,7 @@ function renderBacks(container, count, sittingOut = false) {
 }
 
 function renderSidePile(cardsEl, labelEl, markVal, prefixText = "") {
-  ensureTopLargeMarkPiles();
+  mountMarkBoxesInsideBoard();
   const signed = formatSignedValue(markVal);
   labelEl.textContent = prefixText ? `${prefixText} (${signed})` : signed;
   cardsEl.innerHTML = "";
@@ -1563,7 +1609,7 @@ function waitHumanCard() {
 }
 
 async function startRound(resetMatch = false) {
-  ensureTopLargeMarkPiles();
+  mountMarkBoxesInsideBoard();
   ensureEditNamesButton();
   ensureSingleHandModal();
   els.resultModal.classList.add("hidden");
@@ -2060,6 +2106,6 @@ els.continueBtn.addEventListener("click", () => {
   }
 });
 
-ensureTopLargeMarkPiles();
+mountMarkBoxesInsideBoard();
 ensureEditNamesButton();
 startRound(true);
