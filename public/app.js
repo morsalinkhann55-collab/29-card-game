@@ -67,17 +67,74 @@ const soundFX = {
     osc.start(now);
     osc.stop(now + duration + 0.02);
   },
+  playNoiseBurst(duration = 0.045, filterFreq = 1800, gainVal = 0.07, delay = 0) {
+    const ctx = this.ensureCtx();
+    if (!ctx) return;
+    const sampleRate = ctx.sampleRate;
+    const frameCount = Math.max(1, Math.floor(sampleRate * duration));
+    const buffer = ctx.createBuffer(1, frameCount, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frameCount; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (frameCount * 0.45));
+    }
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(filterFreq, ctx.currentTime + delay);
+    filter.Q.setValueAtTime(1.4, ctx.currentTime + delay);
+
+    const gain = ctx.createGain();
+    const start = ctx.currentTime + delay;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(gainVal, start + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(start);
+    noise.stop(start + duration + 0.01);
+  },
   click() {
     this.playTone(540, 0.05, "triangle", 0.06);
   },
+  shuffle() {
+    const steps = 6;
+    for (let i = 0; i < steps; i++) {
+      const d = i * 0.045;
+      this.playNoiseBurst(0.038, 1500 + i * 220, 0.075, d);
+      this.playTone(260 + i * 35, 0.03, "triangle", 0.03, d);
+    }
+  },
+  cardDeal() {
+    this.playNoiseBurst(0.035, 2200, 0.065, 0);
+    this.playTone(310, 0.045, "triangle", 0.055, 0.005);
+  },
   cardPlay() {
+    this.playNoiseBurst(0.03, 1900, 0.06, 0);
     this.playTone(210, 0.06, "sine", 0.11);
     this.playTone(130, 0.07, "triangle", 0.07, 0.015);
+  },
+  trumpSelect() {
+    this.playTone(440, 0.08, "triangle", 0.08, 0);
+    this.playTone(587.33, 0.11, "triangle", 0.09, 0.07);
   },
   trumpReveal() {
     this.playTone(523.25, 0.12, "triangle", 0.09, 0);
     this.playTone(659.25, 0.14, "triangle", 0.09, 0.09);
     this.playTone(783.99, 0.2, "triangle", 0.1, 0.18);
+  },
+  leadWin(isFriendly = true) {
+    if (isFriendly) {
+      this.playTone(587.33, 0.09, "triangle", 0.085, 0);
+      this.playTone(783.99, 0.13, "sine", 0.095, 0.08);
+    } else {
+      this.playTone(392.0, 0.09, "triangle", 0.07, 0);
+      this.playTone(329.63, 0.12, "sine", 0.07, 0.08);
+    }
   },
   marriageFanfare() {
     this.playTone(587.33, 0.11, "triangle", 0.09, 0);
@@ -356,7 +413,7 @@ function botShouldCallSingleHand(playerIdx, hands) {
 
   const hand = hands[playerIdx] || [];
   let j9aCount = 0;
-  let suitCount = {};
+  const suitCount = {};
   for (const s of SUITS) suitCount[s] = 0;
 
   for (const c of hand) {
@@ -375,18 +432,19 @@ function ensureSingleHandModal() {
   modal = document.createElement("div");
   modal.id = "singleHandModal";
   modal.className = "modal-backdrop hidden";
-  modal.style.zIndex = "9998";
+  modal.style.cssText =
+    "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(2,6,23,0.78);z-index:9998;";
   modal.innerHTML = `
-    <div class="modal-card" style="max-width:380px;text-align:center;background:#0f172a;border:2px solid #f59e0b;color:#fff;">
-      <h3 style="color:#fbbf24;margin-bottom:6px;">Single Hand?</h3>
-      <p id="singleHandDesc" class="modal-sub" style="color:#e2e8f0;margin-bottom:10px;line-height:1.45;"></p>
-      <p id="singleHandRuleNote" style="font-size:11px;color:#94a3b8;margin-bottom:14px;line-height:1.4;">
+    <div class="modal-card" style="width:100%;max-width:360px;text-align:center;background:#0f172a;border:2px solid #f59e0b;color:#fff;border-radius:14px;padding:16px;box-sizing:border-box;">
+      <h3 style="color:#fbbf24;margin:0 0 6px;font-size:18px;">Single Hand?</h3>
+      <p id="singleHandDesc" class="modal-sub" style="color:#e2e8f0;margin:0 0 10px;line-height:1.45;font-size:13px;"></p>
+      <p id="singleHandRuleNote" style="font-size:11px;color:#94a3b8;margin:0 0 14px;line-height:1.4;">
         Win all 8 tricks (No Trump, Partner sits out): +3 Marks | Caught on any trick: -3 Marks immediately.<br/>
         Guaranteed 8-trick hand is blocked; leading a suit held by neither opponent cancels the round.
       </p>
-      <div style="display:flex;gap:10px;justify-content:center;">
-        <button id="declineSingleHandBtn" type="button" class="pill-btn" style="background:#475569;">No (Normal)</button>
-        <button id="acceptSingleHandBtn" type="button" class="pill-btn primary-btn" style="background:#d97706;">Call Single Hand</button>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button id="declineSingleHandBtn" type="button" class="pill-btn" style="background:#475569;color:#fff;padding:8px 14px;border-radius:999px;border:none;font-weight:700;cursor:pointer;">No (Normal)</button>
+        <button id="acceptSingleHandBtn" type="button" class="pill-btn primary-btn" style="background:#d97706;color:#fff;padding:8px 14px;border-radius:999px;border:none;font-weight:700;cursor:pointer;">Call Single Hand</button>
       </div>
     </div>
   `;
@@ -438,6 +496,20 @@ function promptHumanSingleHand() {
     state.singleHandResolver = resolve;
     modal.classList.remove("hidden");
   });
+}
+
+function activateSingleHand(callerIdx) {
+  state.singleHandActive = true;
+  state.singleHandCaller = callerIdx;
+  state.singleHandCallerTricks = 0;
+  state.stakeMultiplier = 1;
+  state.doubledBy = null;
+  state.redoubledBy = null;
+  state.trump = null;
+  state.trumpRevealed = false;
+  state.leader = callerIdx;
+  soundFX.trumpSelect();
+  renderTable();
 }
 
 function updateMarriageBanner() {
@@ -688,7 +760,6 @@ function botBid(hand, currentBid) {
   let hasJack = false;
   let hasNine = false;
   let hasAce = false;
-  let hasTen = false;
   const suitCounts = {};
   for (const s of SUITS) suitCounts[s] = 0;
 
@@ -698,24 +769,19 @@ function botBid(hand, currentBid) {
     if (c.rank === "J") hasJack = true;
     if (c.rank === "9") hasNine = true;
     if (c.rank === "A") hasAce = true;
-    if (c.rank === "10") hasTen = true;
   }
 
   const maxSuitCount = Math.max(...Object.values(suitCounts));
 
-  // সম্ভাব্য ৮ কার্ডের মোট পয়েন্ট ও ট্রির্ক শক্তির বাস্তবসম্মত হিসাব
   let estimatedStrength = rawPoints * 2.1 + 10.5;
   if (maxSuitCount >= 2) estimatedStrength += (maxSuitCount - 1) * 1.4;
   if (hasJack && hasNine) estimatedStrength += 2.0;
   else if (hasJack && hasAce) estimatedStrength += 1.2;
-  if (hasAce && hasTen) estimatedStrength += 0.8;
 
-  // ৪ কার্ডে খুব দুর্বল হাত হলে (যেমন কোনো J বা 9 নেই এবং maxSuitCount < 2) বেশি ঝুঁকি নেবে না
   if (!hasJack && !hasNine && rawPoints <= 1 && maxSuitCount < 2) {
     estimatedStrength -= 2.5;
   }
 
-  // সর্বোচ্চ বাস্তবসম্মত বিড যা বট এই ৪ কার্ড দিয়ে নিতে পারে
   let maxAffordableBid = 0;
   if (estimatedStrength >= 20.5 && (hasJack || (hasNine && maxSuitCount >= 2))) {
     maxAffordableBid = 20;
@@ -762,9 +828,7 @@ function botPlay(playerIdx, hand, played, trump, trumpRevealed) {
   const myTeam = playerIdx % 2;
   const currentTrickPts = played.reduce((sum, item) => sum + item.card.points, 0);
 
-  // ১. লিড করার সময় (প্রথম কার্ড)
   if (played.length === 0) {
-    // একই স্যুটে J ও 9 দুটোই থাকলে J দিয়ে লিড করা নিরাপদ
     const jackWithNine = legal.find(
       (c) =>
         c.rank === "J" &&
@@ -773,29 +837,24 @@ function botPlay(playerIdx, hand, played, trump, trumpRevealed) {
     );
     if (jackWithNine) return jackWithNine;
 
-    // নন-ট্রাম্প শক্ত টেক্কা (A) বা K দিয়ে লিড (তবে একক A হাতে 9 নষ্ট না করার জন্য সতর্ক)
     const safeAces = legal
       .filter((c) => c.suit !== trump && c.rank === "A")
       .sort((a, b) => rankPower(a) - rankPower(b));
     if (safeAces.length > 0) return safeAces[0];
 
-    // পয়েন্টহীন বা কম-ক্ষতিকর কার্ড (7, 8, Q, K) দিয়ে লিড করা সবচেয়ে স্বাভাবিক
     const nonPointSafe = legal
       .filter((c) => c.suit !== trump && c.points === 0)
       .sort((a, b) => rankPower(b) - rankPower(a));
     if (nonPointSafe.length > 0) return nonPointSafe[0];
 
-    // কোনো সেফ নন-ট্রাম্প কার্ড না থাকলে যেকোনো লো-পয়েন্ট কার্ড (9 এড়িয়ে)
     const lowNoNine = legal
       .filter((c) => c.rank !== "9" && c.rank !== "J")
       .sort((a, b) => a.points - b.points || rankPower(b) - rankPower(a));
     if (lowNoNine.length > 0) return lowNoNine[0];
 
-    // একান্তই বাধ্য হলে সর্বনিম্ন পয়েন্টের কার্ড
     return [...legal].sort((a, b) => a.points - b.points || rankPower(b) - rankPower(a))[0];
   }
 
-  // ২. ফলো / রেসপন্স করার সময়
   const currentBestPlayer = trickWinner(played, trump, trumpRevealed);
   const partnerCurrentlyWinning = currentBestPlayer % 2 === myTeam;
 
@@ -804,7 +863,6 @@ function botPlay(playerIdx, hand, played, trump, trumpRevealed) {
     return trickWinner(simulated, trump, trumpRevealed) === playerIdx;
   });
 
-  // পার্টনার ইতিমধ্যে ট্রির্ক জিতলে পয়েন্ট (যেমন 10, A, K, Q, 7, 8) খাওয়ানো; অকারণে 9 নষ্ট না করা
   if (partnerCurrentlyWinning) {
     if (currentTrickPts >= 2) {
       const feedCards = [...legal]
@@ -821,12 +879,10 @@ function botPlay(playerIdx, hand, played, trump, trumpRevealed) {
     return [...legal].sort((a, b) => a.points - b.points || rankPower(b) - rankPower(a))[0];
   }
 
-  // ট্রির্ক জেতার সুযোগ থাকলে
   if (winningCards.length > 0) {
     const nonTrumpWins = winningCards.filter((c) => c.suit !== trump);
     const pool = nonTrumpWins.length > 0 ? nonTrumpWins : winningCards;
 
-    // 9 দিয়ে তখনই জিতবে যদি ট্রির্কে ইতিমধ্যে মূল্যবান পয়েন্ট থাকে বা 9-এর চেয়ে ছোট কোনো উইনিং কার্ড না থাকে
     const nonNineWins = pool.filter((c) => c.rank !== "9");
     const effectivePool =
       nonNineWins.length > 0 && currentTrickPts < 3 ? nonNineWins : pool;
@@ -842,7 +898,6 @@ function botPlay(playerIdx, hand, played, trump, trumpRevealed) {
     return cheapWins[0];
   }
 
-  // ট্রির্ক না জিতলে আগে জিরো-পয়েন্ট বা 7/8/Q/K ফেলে দেওয়া; 9 হাতে রাখা
   const discardWithoutNine = [...legal]
     .filter((c) => c.rank !== "9")
     .sort((a, b) => a.points - b.points || rankPower(b) - rankPower(a));
@@ -985,7 +1040,6 @@ function renderStakeBadge() {
 }
 
 function renderHUD() {
-  // Marriage পয়েন্ট সরাসরি trickPoints-এ যোগ হয় না (শুধু টার্গেট হিসাবের ফ্যাক্টর)
   els.yourScore.textContent =
     state.trickPoints[0] > 0 ? `+${state.trickPoints[0]}` : "0";
   els.oppScore.textContent =
@@ -1347,7 +1401,7 @@ function promptHumanTrump() {
 
 document.querySelectorAll(".suit-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    soundFX.click();
+    soundFX.trumpSelect();
     els.trumpModal.classList.add("hidden");
     if (state.trumpResolver) {
       const r = state.trumpResolver;
@@ -1360,7 +1414,7 @@ document.querySelectorAll(".suit-btn").forEach((btn) => {
 els.use7thCardBtn.addEventListener("click", () => {
   const seventh = getUpcomingSeventhCard();
   if (!seventh) return;
-  soundFX.click();
+  soundFX.trumpSelect();
   state.revealedSeventhCard = seventh;
   els.trumpModal.classList.add("hidden");
   updateSeventhLeadBanner();
@@ -1372,7 +1426,7 @@ els.use7thCardBtn.addEventListener("click", () => {
 });
 
 els.useJokerTrumpBtn.addEventListener("click", () => {
-  soundFX.click();
+  soundFX.trumpSelect();
   els.trumpModal.classList.add("hidden");
   if (state.trumpResolver) {
     const r = state.trumpResolver;
@@ -1454,6 +1508,7 @@ async function startRound(resetMatch = false) {
     state.dealer = (state.dealer + 1) % 4;
   }
 
+  soundFX.shuffle();
   state.deck = shuffle(createDeck());
   state.hands = [[], [], [], []];
   state.dealtHands = [[], [], [], []];
@@ -1487,7 +1542,10 @@ async function startRound(resetMatch = false) {
   state.lastPlayedPlayer = null;
   state.phase = "bidding";
 
-  for (let i = 0; i < 16; i++) state.hands[i % 4].push(state.deck.shift());
+  for (let i = 0; i < 16; i++) {
+    state.hands[i % 4].push(state.deck.shift());
+    if (i % 4 === 0) soundFX.cardDeal();
+  }
   renderTable();
   els.statusText.textContent = "4 cards dealt each — Bidding started...";
   await sleep(450);
@@ -1605,6 +1663,7 @@ async function startRound(resetMatch = false) {
     els.statusText.textContent = `Trump selected by ${getPlayerName(HUMAN)} (hidden until shown)`;
   } else {
     state.trump = botChooseTrump(state.hands[state.bidder]);
+    soundFX.trumpSelect();
     els.statusText.textContent = `Trump selected by ${getPlayerName(state.bidder)} (hidden until shown)`;
     await sleep(450);
   }
@@ -1612,7 +1671,10 @@ async function startRound(resetMatch = false) {
 
   for (let i = 0; i < 16; i++) {
     const card = state.deck.shift();
-    if (card) state.hands[i % 4].push(card);
+    if (card) {
+      state.hands[i % 4].push(card);
+      if (i % 4 === 0) soundFX.cardDeal();
+    }
   }
   state.dealtHands = state.hands.map((h) => [...h]);
   els.statusText.textContent = "All 8 cards dealt! Checking rules...";
@@ -1632,36 +1694,24 @@ async function startRound(resetMatch = false) {
     return;
   }
 
-  if (state.bidder === HUMAN) {
-    const wantsSingle = await promptHumanSingleHand();
-    if (wantsSingle) {
-      state.singleHandActive = true;
-      state.singleHandCaller = HUMAN;
-      state.singleHandCallerTricks = 0;
-      state.stakeMultiplier = 1;
-      state.doubledBy = null;
-      state.redoubledBy = null;
-      state.trump = null;
-      state.trumpRevealed = false;
-      state.leader = HUMAN;
-      renderTable();
-      els.statusText.textContent = `${getPlayerName(HUMAN)} called SINGLE HAND! Must win all 8/8 tricks.`;
+  // যেকোনো প্লেয়ার (HUMAN বা যেকোনো বট) চাইলে Single Hand ডাকতে পারবে
+  const callOrder = [0, 1, 2, 3].map((offset) => (state.bidder + offset) % 4);
+  for (const pIdx of callOrder) {
+    if (state.singleHandActive) break;
+
+    if (pIdx === HUMAN) {
+      const wantsSingle = await promptHumanSingleHand();
+      if (wantsSingle) {
+        activateSingleHand(HUMAN);
+        els.statusText.textContent = `${getPlayerName(HUMAN)} called SINGLE HAND! Must win all 8/8 tricks.`;
+        await sleep(550);
+        break;
+      }
+    } else if (botShouldCallSingleHand(pIdx, state.hands)) {
+      activateSingleHand(pIdx);
+      els.statusText.textContent = `${getPlayerName(pIdx)} called SINGLE HAND! Must win all 8/8 tricks.`;
       await sleep(550);
-    }
-  } else {
-    if (botShouldCallSingleHand(state.bidder, state.hands)) {
-      state.singleHandActive = true;
-      state.singleHandCaller = state.bidder;
-      state.singleHandCallerTricks = 0;
-      state.stakeMultiplier = 1;
-      state.doubledBy = null;
-      state.redoubledBy = null;
-      state.trump = null;
-      state.trumpRevealed = false;
-      state.leader = state.bidder;
-      renderTable();
-      els.statusText.textContent = `${getPlayerName(state.bidder)} called SINGLE HAND! Must win all 8/8 tricks.`;
-      await sleep(550);
+      break;
     }
   }
 
@@ -1731,7 +1781,6 @@ async function startRound(resetMatch = false) {
       state.activePlayer = null;
       soundFX.cardPlay();
 
-      // যে প্লেয়ার ট্রাম্প স্যুটের K বা Q (Marriage card) খেলবে তাকে রেকর্ড ও চেক করা
       recordMarriageCardPlayed(p, card);
       evaluateInternationalMarriage(true);
 
@@ -1788,6 +1837,7 @@ async function startRound(resetMatch = false) {
         state.singleHandCallerTricks += 1;
       } else {
         state.singleHandCaughtEarly = true;
+        soundFX.leadWin(false);
         els.statusText.textContent = `Single Hand caught on Trick ${trick} by ${getPlayerName(winner)}! (-${SINGLE_HAND_MARK} Mark)`;
         renderHUD();
         renderTurnIndicators();
@@ -1796,12 +1846,11 @@ async function startRound(resetMatch = false) {
       }
     }
 
-    if (winTeam === 0) soundFX.win();
-    els.statusText.textContent = `Trick ${trick} won by ${getPlayerName(winner)} (+${earned})`;
+    soundFX.leadWin(winTeam === 0);
+    els.statusText.textContent = `${getPlayerName(winner)} got lead (+${earned})`;
     renderHUD();
     renderTurnIndicators();
 
-    // একই প্লেয়ারের K+Q খেলা হয়ে থাকলে এবং এখন অন্তত ১টি Pit জিতে গেলে Marriage শো হবে
     evaluateInternationalMarriage(true);
     renderHUD();
 
