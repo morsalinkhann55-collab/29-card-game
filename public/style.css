@@ -1,4 +1,3 @@
-/* ===== 29 Card Game: Complete Stylesheet ===== */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -19,122 +18,6 @@ body {
   display: flex;
   justify-content: center;
   padding: 10px;
-}
-
-/* Start & Bot Name Customization Lobby */
-.lobby-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(5, 13, 9, 0.88);
-  backdrop-filter: blur(5px);
-}
-
-.lobby-overlay.hidden {
-  display: none !important;
-}
-
-.lobby-card {
-  width: 100%;
-  max-width: 380px;
-  background: #0d2217;
-  border: 2px solid #7dd3fc;
-  border-radius: 16px;
-  padding: 20px;
-  color: #ffffff;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
-  animation: cardPopIn 0.22s ease-out;
-}
-
-.lobby-card h2 {
-  font-size: 19px;
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.arena-badge {
-  background: linear-gradient(135deg, #facc15, #f59e0b);
-  color: #0f172a;
-  font-size: 11px;
-  font-weight: 900;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
-.lobby-subtitle {
-  font-size: 13px;
-  color: #cbd5e1;
-  margin-bottom: 14px;
-}
-
-.bot-name-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.bot-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #e2e8f0;
-}
-
-.bot-field input {
-  padding: 9px 12px;
-  border-radius: 9px;
-  border: 1.5px solid #334155;
-  background: #07140d;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.bot-field input:focus {
-  outline: none;
-  border-color: #38bdf8;
-}
-
-.lobby-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.primary-btn,
-.secondary-btn {
-  flex: 1;
-  padding: 10px 12px;
-  border: none;
-  border-radius: 10px;
-  font-weight: 800;
-  font-size: 14px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: transform 0.12s ease, filter 0.15s ease;
-}
-
-.primary-btn:active,
-.secondary-btn:active {
-  transform: scale(0.96);
-}
-
-.primary-btn {
-  background: #0ea5e9;
-  color: #ffffff;
-}
-
-.secondary-btn {
-  background: #475569;
-  color: #ffffff;
 }
 
 .game-shell {
@@ -296,6 +179,108 @@ body {
   box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
+.side-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.team-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 64px;
+}
+
+.pile-cards {
+  position: relative;
+  width: 54px;
+  height: 44px;
+}
+
+.pile-card-6d {
+  position: relative;
+  width: 30px;
+  height: 42px;
+  border-radius: 4px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.38);
+  padding: 2px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  z-index: 1;
+}
+
+.pile-card-6d.minus-mode {
+  border-color: #111827;
+}
+
+.pile-6d-corner {
+  font-size: 7px;
+  font-weight: 900;
+  line-height: 1;
+  color: #dc2626;
+}
+
+.pile-card-6d.minus-mode .pile-6d-corner {
+  color: #111827;
+}
+
+.pile-6d-pips {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  padding: 1px 4px;
+  justify-items: center;
+  align-items: center;
+}
+
+.pile-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  transform: rotate(45deg);
+  display: inline-block;
+}
+
+.pile-pip.red-pip {
+  background: #dc2626;
+}
+
+.pile-pip.black-pip {
+  background: #111827;
+}
+
+.pile-pip.hidden-pip {
+  opacity: 0;
+}
+
+.pile-card-back {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  width: 28px;
+  height: 38px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #2563eb, #1e3a8a);
+  border: 1px solid #dbeafe;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.42);
+  transform: rotate(18deg);
+  z-index: 2;
+}
+
+.pile-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #f8fafc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+  white-space: nowrap;
+}
+
 .seat {
   display: flex;
   flex-direction: column;
@@ -394,7 +379,7 @@ body {
 
 .middle-row {
   display: grid;
-  grid-template-columns: 82px 1fr 82px;
+  grid-template-columns: 84px 1fr 84px;
   align-items: center;
   gap: 4px;
   margin: 6px 0;
@@ -416,8 +401,24 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: #fef08a;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   text-align: center;
+}
+
+.seventh-lead-banner {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1.5px solid #facc15;
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.32);
+}
+
+.seventh-lead-banner.red-suit {
+  color: #dc2626;
 }
 
 /* 4-Directional Trick Slots */
@@ -508,6 +509,10 @@ body {
 
 .pill-btn.sound-off {
   background: #475569;
+}
+
+.primary-btn {
+  background: #0ea5e9;
 }
 
 .full-btn {
@@ -852,7 +857,7 @@ body {
   }
 
   .middle-row {
-    grid-template-columns: 66px 1fr 66px;
+    grid-template-columns: 68px 1fr 68px;
     gap: 2px;
   }
 
