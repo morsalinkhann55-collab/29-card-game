@@ -254,6 +254,78 @@ const els = {
   continueBtn: document.getElementById("continueBtn"),
 };
 
+// মার্ক পাইল কার্ডগুলো উপরের লাল টিক (✓) চিহ্নের জায়গায় এবং বড় সাইজে দেখানোর স্টাইল
+function ensureTopLargeMarkPiles() {
+  if (document.getElementById("topLargeMarkStyle")) return;
+
+  const style = document.createElement("style");
+  style.id = "topLargeMarkStyle";
+  style.textContent = `
+    #yourPileCards, #oppPileCards {
+      position: fixed !important;
+      top: 86px !important;
+      z-index: 60 !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 4px !important;
+      pointer-events: none;
+    }
+    #yourPileCards {
+      left: 10px !important;
+    }
+    #oppPileCards {
+      right: 10px !important;
+      flex-direction: row-reverse !important;
+    }
+    #yourMarkText, #oppMarkText {
+      position: fixed !important;
+      top: 156px !important;
+      z-index: 60 !important;
+      font-size: 12px !important;
+      font-weight: 800 !important;
+      color: #ffffff !important;
+      background: rgba(15, 23, 42, 0.82) !important;
+      padding: 2px 8px !important;
+      border-radius: 999px !important;
+      border: 1px solid rgba(255, 255, 255, 0.25) !important;
+      pointer-events: none;
+    }
+    #yourMarkText {
+      left: 10px !important;
+    }
+    #oppMarkText {
+      right: 10px !important;
+    }
+    .pile-card-6d, .pile-card-back {
+      width: 44px !important;
+      height: 62px !important;
+      border-radius: 7px !important;
+    }
+    .pile-6d-corner {
+      font-size: 11px !important;
+      font-weight: 800 !important;
+    }
+    .pile-pip {
+      width: 7px !important;
+      height: 7px !important;
+    }
+    @media (max-width: 480px) {
+      #yourPileCards, #oppPileCards {
+        top: 82px !important;
+      }
+      #yourMarkText, #oppMarkText {
+        top: 146px !important;
+        font-size: 11px !important;
+      }
+      .pile-card-6d, .pile-card-back {
+        width: 40px !important;
+        height: 56px !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function getPlayerName(idx) {
   return (
     state.playerNames[idx] ||
@@ -957,8 +1029,10 @@ function renderBacks(container, count, sittingOut = false) {
   }
 }
 
-function renderSidePile(cardsEl, labelEl, markVal) {
-  labelEl.textContent = formatSignedValue(markVal);
+function renderSidePile(cardsEl, labelEl, markVal, prefixText = "") {
+  ensureTopLargeMarkPiles();
+  const signed = formatSignedValue(markVal);
+  labelEl.textContent = prefixText ? `${prefixText} (${signed})` : signed;
   cardsEl.innerHTML = "";
 
   const absVal = Math.abs(markVal);
@@ -1045,8 +1119,8 @@ function renderHUD() {
   els.oppScore.textContent =
     state.trickPoints[1] > 0 ? `+${state.trickPoints[1]}` : "0";
 
-  renderSidePile(els.yourPileCards, els.yourMarkText, state.teamMarks[0]);
-  renderSidePile(els.oppPileCards, els.oppMarkText, state.teamMarks[1]);
+  renderSidePile(els.yourPileCards, els.yourMarkText, state.teamMarks[0], "Your team");
+  renderSidePile(els.oppPileCards, els.oppMarkText, state.teamMarks[1], "Opponent");
 
   if (state.singleHandActive && state.singleHandCaller !== null) {
     els.bidderLabel.textContent = `Single: ${getPlayerName(state.singleHandCaller)}`;
@@ -1489,6 +1563,7 @@ function waitHumanCard() {
 }
 
 async function startRound(resetMatch = false) {
+  ensureTopLargeMarkPiles();
   ensureEditNamesButton();
   ensureSingleHandModal();
   els.resultModal.classList.add("hidden");
@@ -1985,5 +2060,6 @@ els.continueBtn.addEventListener("click", () => {
   }
 });
 
+ensureTopLargeMarkPiles();
 ensureEditNamesButton();
 startRound(true);
